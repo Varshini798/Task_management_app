@@ -1,0 +1,166 @@
+// DOM elements
+const taskForm = document.getElementById('task-form');
+const taskInput = document.getElementById('task-input');
+const taskList = document.getElementById('task-list');
+const progressBar = document.getElementById('progress-bar');
+const progressText = document.getElementById('progress-text');
+
+// Load tasks from localStorage on page load
+document.addEventListener('DOMContentLoaded', loadTasks);
+
+// Event listeners
+taskForm.addEventListener('submit', addTask);
+
+// Functions
+function addTask(e) {
+    e.preventDefault();
+
+    const taskText = taskInput.value.trim();
+    if (taskText === '') return;
+
+    const taskId = Date.now().toString();
+    const task = {
+        id: taskId,
+        text: taskText,
+        completed: false
+    };
+
+    createTaskElement(task);
+    saveTaskToStorage(task);
+    taskInput.value = '';
+    updateProgress();
+}
+
+function createTaskElement(task) {
+    const li = document.createElement('li');
+    li.className = 'task-item';
+    li.dataset.id = task.id;
+    
+    if (task.completed) {
+        li.classList.add('completed');
+    }
+    
+    li.innerHTML = `
+        <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''}>
+        <span class="task-text">${task.text}</span>
+        <div class="task-actions">
+            <button class="btn edit-btn">Edit</button>
+            <button class="btn delete-btn">Delete</button>
+        </div>
+    `;
+    
+    // Event listeners for task actions
+    const checkbox = li.querySelector('.task-checkbox');
+    const editBtn = li.querySelector('.edit-btn');
+    const deleteBtn = li.querySelector('.delete-btn');
+    
+    checkbox.addEventListener('change', () => toggleTaskCompletion(task.id));
+    editBtn.addEventListener('click', () => editTask(task.id));
+    deleteBtn.addEventListener('click', () => deleteTask(task.id));
+    
+    taskList.appendChild(li);
+}
+
+function toggleTaskCompletion(taskId) {
+    const taskItem = document.querySelector(`[data-id="${taskId}"]`);
+    const task = getTaskFromStorage(taskId);
+
+    task.completed = !task.completed;
+    taskItem.classList.toggle('completed');
+
+    updateTaskInStorage(task);
+    updateProgress();
+}
+
+function editTask(taskId) {
+    const taskItem = document.querySelector(`[data-id="${taskId}"]`);
+    const taskText = taskItem.querySelector('.task-text');
+    const currentText = taskText.textContent;
+    
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = currentText;
+    input.className = 'edit-input';
+    
+    taskText.replaceWith(input);
+    input.focus();
+    
+    input.addEventListener('blur', () => saveEdit(taskId, input));
+    input.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            saveEdit(taskId, input);
+        }
+    });
+}
+
+function saveEdit(taskId, input) {
+    const newText = input.value.trim();
+    if (newText === '') return;
+    
+    const task = getTaskFromStorage(taskId);
+    task.text = newText;
+    
+    const span = document.createElement('span');
+    span.className = 'task-text';
+    span.textContent = newText;
+    
+    input.replaceWith(span);
+    updateTaskInStorage(task);
+}
+
+function deleteTask(taskId) {
+    const taskItem = document.querySelector(`[data-id="${taskId}"]`);
+    taskItem.classList.add('removing');
+
+    setTimeout(() => {
+        taskItem.remove();
+        removeTaskFromStorage(taskId);
+        updateProgress();
+    }, 300);
+}
+
+function saveTaskToStorage(task) {
+    const tasks = getTasksFromStorage();
+    tasks.push(task);
+    localStorage.setItem('tasks', JSON.stringify(tasks));
+}
+
+function getTasksFromStorage() {
+    const tasks = localStorage.getItem('tasks');
+    return tasks ? JSON.parse(tasks) : [];
+}
+
+function getTaskFromStorage(taskId) {
+    const tasks = getTasksFromStorage();
+    return tasks.find(task => task.id === taskId);
+}
+
+function updateTaskInStorage(updatedTask) {
+    const tasks = getTasksFromStorage();
+    const index = tasks.findIndex(task => task.id === updatedTask.id);
+    if (index !== -1) {
+        tasks[index] = updatedTask;
+        localStorage.setItem('tasks', JSON.stringify(tasks));
+    }
+}
+
+function removeTaskFromStorage(taskId) {
+    const tasks = getTasksFromStorage();
+    const filteredTasks = tasks.filter(task => task.id !== taskId);
+    localStorage.setItem('tasks', JSON.stringify(filteredTasks));
+}
+
+function loadTasks() {
+    const tasks = getTasksFromStorage();
+    tasks.forEach(task => createTaskElement(task));
+    updateProgress();
+}
+
+function updateProgress() {
+    const tasks = getTasksFromStorage();
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter(task => task.completed).length;
+    const progressPercentage = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
+
+    progressBar.style.setProperty('--progress-width', `${progressPercentage}%`);
+}
